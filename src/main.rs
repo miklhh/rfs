@@ -1,18 +1,10 @@
-use std::io;
 use std::fs;
 use std::path::PathBuf;
 use std::collections::VecDeque;
 use regex::Regex;
 use structopt::StructOpt;
 
-//fn path_prefix_trim(dir_entry: &str, ignore_regex: &Vec<Regex>) -> String  {
-//    lazy_static! {
-//        static ref RE: Regex = Regex::new( r"^.*/" ).unwrap();
-//    };
-//    RE.replace_all(dir_entry, "").to_string()
-//}
-
-fn rfs_dir(dir: PathBuf, ignore_regex: &Vec<Regex>) -> io::Result<()> {
+fn rfs_dir(dir: PathBuf, ignore_regex: &Vec<Regex>) {
     let mut fifo = VecDeque::new();
     fifo.push_back(dir);
     while !fifo.is_empty() {
@@ -37,27 +29,24 @@ fn rfs_dir(dir: PathBuf, ignore_regex: &Vec<Regex>) -> io::Result<()> {
                 };
 
                 // Ignore directories from Regex
-                let mut add_dir = true;
-                for re in ignore_regex {
-                    if re.is_match(dir_str) {
-                        add_dir = false;
-                    }
-                }
+                let add_dir = !ignore_regex.iter().any(|re|re.is_match(dir_str));
                 if add_dir {
                     fifo.push_back(dir_entry)
                 }
-
             }
 
             // Print result to stdout
             println!("{}", current_dir.to_string_lossy());
         }
     }
-    Ok(())
 }
 
 #[derive(Debug, StructOpt)]
 struct Opt {
+    #[structopt(long, short, default_value=".")]
+    /// Search path (defaults to '.')
+    path: PathBuf,
+
     #[structopt(long, short)]
     /// Path suffixes to ignore
     ignore_paths: Vec<String>,
@@ -65,12 +54,10 @@ struct Opt {
 
 fn main() {
     let opt = Opt::from_args();
-
     let mut ignore_regex: Vec<Regex> = Vec::new();
     for entry in opt.ignore_paths {
         let regex_str = format!(r"{}$", entry);
         ignore_regex.push( Regex::new(&regex_str).unwrap() );
     }
-
-    rfs_dir(PathBuf::from("."), &ignore_regex).unwrap();
+    rfs_dir(opt.path, &ignore_regex);
 }
