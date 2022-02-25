@@ -11,5 +11,3 @@ description = "Breadth first search of directories"
 regex = "1"
 lazy_static = "1.4.0"
 structopt = "0.3"
-tokio = {version = "1.17.0", features = ["full"]}
-futures = "0.3.21"
