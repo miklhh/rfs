@@ -2,6 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::io::Write;
+use tokio::io::ErrorKind::BrokenPipe;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::sync::RwLock;
@@ -29,7 +31,7 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
                     // TODO: Print error on permission denied?
                     let subdirs = match fs::read_dir(&current_dir) {
                         Ok(val) => val,
-                        Err(_) => return,
+                        Err(_) => return Ok(()),
                     };
 
                     for child_dir in subdirs {
@@ -51,14 +53,27 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
                     }
 
                     // Print result to stdout
-                    println!("{}", current_dir.to_string_lossy());
+                    // println!("{}", current_dir.to_string_lossy());
+                    let write_result = writeln!(std::io::stdout(), "{}", current_dir.to_string_lossy());
+                    if write_result.is_err() {
+                        return write_result;
+                    }
                 }
+                Ok(())
             });
             worker_handles.push(handle);
         }
         else {
-            if let Some(_) = worker_handles.next().await {
-                continue
+            match worker_handles.next().await {
+                Some(Ok(Ok(()))) => continue,
+                // Break early if the receiver disconnected
+                Some(Ok(Err(e))) if e.kind() == BrokenPipe => {
+                    break;
+                }
+                // If we got another io error while printing panic
+                Some(Ok(e)) => {e.unwrap()}
+                Some(Err(e)) => {panic!("Error while printing {:?}", e)},
+                None => {}
             }
             if worker_handles.is_empty() {
                 break;
