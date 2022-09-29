@@ -1,14 +1,14 @@
-use std::fs;
-use std::path::PathBuf;
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::io::Write;
-use tokio::io::ErrorKind::BrokenPipe;
-use futures::StreamExt;
 use futures::stream::FuturesUnordered;
-use tokio::sync::RwLock;
+use futures::StreamExt;
 use regex::Regex;
+use std::collections::VecDeque;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Arc;
 use structopt::StructOpt;
+use tokio::io::ErrorKind::BrokenPipe;
+use tokio::sync::RwLock;
 
 async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
     let ignore_regex = Arc::new(ignore_regex);
@@ -42,11 +42,11 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
 
                         let dir_str = match dir_entry.to_str() {
                             Some(val) => val,
-                            None => continue 
+                            None => continue,
                         };
 
                         // Ignore directories from Regex
-                        let add_dir = !ignore_regex.iter().any(|re|re.is_match(dir_str));
+                        let add_dir = !ignore_regex.iter().any(|re| re.is_match(dir_str));
                         if add_dir {
                             fifo.write().await.push_back(dir_entry);
                         }
@@ -54,8 +54,10 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
 
                     // Print result to stdout
                     // println!("{}", current_dir.to_string_lossy());
-                    let write_result = writeln!(std::io::stdout(), "{}", current_dir.to_string_lossy());
+                    let write_result =
+                        writeln!(std::io::stdout(), "{}", current_dir.to_string_lossy());
                     if write_result.is_err() {
+                        eprintln!("Worker exited");
                         return write_result;
                     }
                 }
@@ -63,29 +65,26 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
             });
             worker_handles.push(handle);
         }
-        else {
-            match worker_handles.next().await {
-                Some(Ok(Ok(()))) => continue,
-                // Break early if the receiver disconnected
-                Some(Ok(Err(e))) if e.kind() == BrokenPipe => {
-                    break;
-                }
-                // If we got another io error while printing panic
-                Some(Ok(e)) => {e.unwrap()}
-                Some(Err(e)) => {panic!("Error while printing {:?}", e)},
-                None => {}
+        match worker_handles.next().await {
+            Some(Ok(Ok(()))) => continue,
+            // Break early if the receiver disconnected
+            Some(Ok(Err(e))) if e.kind() == BrokenPipe => break,
+            // If we got another io error while printing panic
+            Some(Ok(e)) => e.unwrap(),
+            Some(Err(e)) => {
+                panic!("Error while printing {:?}", e)
             }
-            if worker_handles.is_empty() {
-                break;
-            }
+            None => {}
+        }
+        if worker_handles.is_empty() {
+            break;
         }
     }
-
 }
 
 #[derive(Debug, StructOpt)]
 struct Opt {
-    #[structopt(long, short, default_value=".")]
+    #[structopt(long, short, default_value = ".")]
     /// Search path (defaults to '.')
     path: PathBuf,
 
@@ -100,7 +99,7 @@ async fn main() {
     let mut ignore_regex: Vec<Regex> = Vec::new();
     for entry in opt.ignore_paths {
         let regex_str = format!(r"{}$", entry);
-        ignore_regex.push( Regex::new(&regex_str).unwrap() );
+        ignore_regex.push(Regex::new(&regex_str).unwrap());
     }
     rfs_dir(opt.path, ignore_regex).await;
 }
