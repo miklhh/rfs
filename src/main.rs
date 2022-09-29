@@ -57,7 +57,6 @@ async fn rfs_dir(dir: PathBuf, ignore_regex: Vec<Regex>) {
                     let write_result =
                         writeln!(std::io::stdout(), "{}", current_dir.to_string_lossy());
                     if write_result.is_err() {
-                        eprintln!("Worker exited");
                         return write_result;
                     }
                 }
